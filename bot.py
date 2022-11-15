@@ -6,14 +6,17 @@ import json
 import re
 import logging
 from config import get_config
+from db import *
 
 bot_token = get_config()['bot_token']
 
 bot = Bot(bot_token) #Telegram bot token
 dp = Dispatcher(bot)
 
-logging.basicConfig(level=logging.INFO, filename="log.log",filemode="a",
-                    format="%(asctime)s %(levelname)s %(message)s")
+#logging.basicConfig(level=logging.INFO, filename="log.log",filemode="a",
+#                    format="%(asctime)s %(levelname)s %(message)s")
+
+
 
 with open('songs.json', 'r', encoding='utf8') as file:
     data = json.load(file)
@@ -23,86 +26,110 @@ for artist, song in data.items():
         data_songs.add(str(s))
 
 
-def search(text:str):
-    text = text.upper()
-    r = re.compile(f".*{text}.*")
-    song_list = list(filter(r.match, data_songs))
-    artist_list = list(filter(r.match, data))
-
-    if len(artist_list) == 0:
-        for key in data.keys():
-            if key == text:
-                artist_list.append(key)
-
-    return song_list, artist_list
-
-
-def get_sing_from_other(songs:dict):
-    other_dict = {}
-    remov = set()
-    for key, items in data.items():
-
-        for s in songs:
-            if s in items:
-                if other_dict.get(key) == None:
-                    other_dict[key] = [s]
-                    remov.add(s)
-                else:
-                    other_dict[key].append(s)
-                    remov.add(s)
-
-    for r in remov:
-        songs.remove(r)
-
-    return other_dict, songs
-
-
-
-def data_log():
-    with open('log.log', 'r') as file:
-        lines = file.readlines()
-
-    answ = {}
-    for line in lines:
-        find_text = re.findall(r'text: .*', line)
-        if find_text:
-            text = find_text[0].split(': ')[1]
-            if answ.get(text) == None:
-                answ[text] = 1
-            else:
-                answ[text] += 1
-
-    text = 'Список запросов пользователей:\n'
-    for key, items in answ.items():
-        text += f'TEXT: `{key}` искали {items}\n'
-
-    list_text = [key for key in answ.keys()]
-    return text, list_text
-
-
-
-
-@dp.message_handler(commands=['get_log'])
-async def send_welcome(msg: types.Message):
-
-    text, _ = data_log()
-
+async def send_msg(usr_id:int, text:str):
     try:
         firs = 0
         last = 100
         msg_c = len(text.split('\n'))
         while True:
             if msg_c - last < 0:
-                await bot.send_message(msg.from_user.id, '\n'.join(text.split('\n')[firs:]), parse_mode="Markdown")
+                await bot.send_message(usr_id, '\n'.join(text.split('\n')[firs:]), parse_mode="Markdown")
                 break
 
-            await bot.send_message(msg.from_user.id, '\n'.join(text.split('\n')[firs:last]), parse_mode="Markdown")
+            elif msg_c < last:
+                await bot.send_message(usr_id, '\n'.join(text.split('\n')[firs:]), parse_mode="Markdown")
+                break
+
+            await bot.send_message(usr_id, '\n'.join(text.split('\n')[firs:last]), parse_mode="Markdown")
 
             firs += 100
             last += 100
 
     except Exception as e:
         logging.exception(e)
+
+
+
+@dp.message_handler(commands=['list_order'])
+async def send_welcome(msg: types.Message):
+    text = get_order_book()
+    usr_id = msg.from_user.id
+
+    await send_msg(usr_id, text)
+
+
+
+@dp.message_handler(commands=['clear_order_book'])
+async def send_welcome(msg: types.Message):
+    if clear_order_book():
+        await bot.send_message(msg.from_user.id, "Список заказов очищен")
+
+    else:
+        await bot.send_message(msg.from_user.id, "Что-то пошло не так")
+
+
+
+
+@dp.message_handler(commands=['order'])
+async def send_welcome(msg: types.Message):
+    usr_id = str(msg.from_user.id)
+
+    if len(msg.text.split(' ')) > 1:
+        song = msg.text[7:]
+        name = get_name(usr_id)
+
+        if name != None:
+            if add_order(name, song):
+                await bot.send_message(msg.from_user.id, f'Заказ на песню {song} записан')
+            else:
+                await bot.send_message(msg.from_user.id, "Что-то пошло не так")
+
+        else:
+            await bot.send_message(msg.from_user.id, "Ты не ввел име, для указания имя нужно ввести команду так: /name Иван")
+
+    else:
+        await bot.send_message(msg.from_user.id, "Ты не ввел название песни которую хочешь заказать, для указания песни нужно ввести команду так: /order ABBA")
+
+
+
+
+@dp.message_handler(commands=['name'])
+async def send_welcome(msg: types.Message):
+    usr_id = str(msg.from_user.id)
+
+    if len(msg.text.split(' ')) > 1:
+        name = msg.text[6:]
+        if set_name(name, usr_id):
+            await bot.send_message(msg.from_user.id, f"Ты установил себе име {name}")
+        else:
+            await bot.send_message(msg.from_user.id, "Что-то пошло не так(")
+
+    else:
+        await bot.send_message(msg.from_user.id, "Ты не ввел име, для указания имя нужно ввести команду так: /name Иван")
+
+
+
+
+
+
+@dp.message_handler(commands=['not_in_db'])
+async def send_welcome(msg: types.Message):
+    usr_id = msg.from_user.id
+    await bot.send_message(usr_id, "Я проверяю, подожди.")
+    text = not_in_db(data, data_songs)
+
+
+    await send_msg(usr_id, text)
+
+
+
+@dp.message_handler(commands=['get_log'])
+async def send_welcome(msg: types.Message):
+    text, _ = data_log()
+    usr_id = msg.from_user.id
+
+    await send_msg(usr_id, text)
+
 
 
 @dp.message_handler(commands=['start', 'help'])
@@ -115,10 +142,11 @@ async def send_welcome(msg: types.Message):
 
 
 
+
 @dp.message_handler()
 async def all_msg(msg: types.Message):
     logging.info(f"user_id: {msg.from_user.id} text: {msg.text.strip()}")
-    songs_list, artist_list = search(str(msg.text).strip())
+    songs_list, artist_list = search(str(msg.text).strip(), data, data_songs)
     r = r'\(.*\)|#|\d{5,}|\{.*\}|•|\[.*\]'
 
 
@@ -132,7 +160,7 @@ async def all_msg(msg: types.Message):
 
     #получение списка артистов из песен и записить их
     if len(songs_list) > 0:
-        other_dict, songs_list = get_sing_from_other(songs_list)
+        other_dict, songs_list = get_sing_from_other(songs_list, data)
 
         for art, songs in other_dict.items():
             text += f'\n🎤 `{art}`:\n'
@@ -149,24 +177,8 @@ async def all_msg(msg: types.Message):
     if text == '':
         text = 'Песня или исполнитель не найдены\n'
 
-
-    try:
-        firs = 0
-        last = 100
-        msg_c = len(text.split('\n'))
-        while True:
-            if msg_c - last < 0:
-                await bot.send_message(msg.from_user.id, '\n'.join(text.split('\n')[firs:]), parse_mode="Markdown")
-                break
-
-            await bot.send_message(msg.from_user.id, '\n'.join(text.split('\n')[firs:last]), parse_mode="Markdown")
-
-            firs += 100
-            last += 100
-
-    except Exception as e:
-        #print(e)
-        logging.exception(e)
+    usr_id = msg.from_user.id
+    await send_msg(usr_id, text)
 
 
 

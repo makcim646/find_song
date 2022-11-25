@@ -9,7 +9,6 @@ from config import get_config
 from db import *
 
 bot_token = get_config()['bot_token']
-
 bot = Bot(bot_token) #Telegram bot token
 dp = Dispatcher(bot)
 
@@ -23,7 +22,7 @@ with open('songs.json', 'r', encoding='utf8') as file:
 data_songs = set()
 for artist, song in data.items():
     for s in song:
-        data_songs.add(str(s))
+        data_songs.add(s)
 
 
 async def send_msg(usr_id:int, text:str):

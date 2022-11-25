@@ -18,24 +18,26 @@ def load_lxsx(file_xlsx):
     wb = load_workbook(file_xlsx)
     ws = wb.active
 
+    r = r'\(.*\)|#|\d{5,}|\{.*\}|•|\[.*\]'
     data = set()
     for a,b,c,d,e in ws.rows:
-        data.add((str(b.value), str(c.value)))
+        data.add((re.sub(r, '', str(b.value)).strip(), str(c.value)))
 
     wb.close()
     #print(data)
     data1 = sorted(data, key=lambda x: x[1])
     first = data1[0][1]
     artist_dict = {}
-    songs = []
+    songs = set()
     for song, artist in data1:
         if first == artist:
 
-            songs.append(song)
+            songs.add(song)
         else:
-            artist_dict[first] = songs
+            artist_dict[first] = [s for s in songs]
+            count_song
             first = artist
-            songs = [song]
+            songs = {song}
 
     save = {**data_r, **artist_dict}
 
@@ -170,10 +172,23 @@ def not_in_db(data:dict, data_songs:set):
     return answ_text
 
 
+def song_count():
+    with open('songs.json', 'r', encoding='utf8') as file:
+        data_r = json.load(file)
+
+    data_songs = set()
+    for artist, song in data_r.items():
+        for s in song:
+            data_songs.add(s)
+
+    print(len(data_songs))
+
+
 
 
 
 if __name__ == "__main__":
     #get_sing_from_other(['ДАЙ РУКУ МНЕ'])
+    song_count()
     pass
     # полное название файла с таблицей table.xlsx

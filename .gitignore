@@ -3,3 +3,8 @@ setting.ini
 order.txt
 log.log
 user.json
+songs.json
+Base_karaoke_actual.xlsx
+main_log.log
+songs.json
+*.json
